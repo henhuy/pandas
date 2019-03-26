@@ -155,6 +155,7 @@ class Styler(object):
                 return x
 
         self._display_funcs = defaultdict(lambda: default_display_func)
+        self._display_index_funcs = defaultdict(lambda: str)
 
     def _repr_html_(self):
         """
@@ -295,12 +296,13 @@ class Styler(object):
             for c, value in enumerate(rlabels[r]):
                 rid = [ROW_HEADING_CLASS, "level{lvl}".format(lvl=c),
                        "row{row}".format(row=r)]
+                formatter = self._display_index_funcs[r]
                 es = {
                     "type": "th",
                     "is_visible": (_is_visible(r, c, idx_lengths) and
                                    not hidden_index),
                     "value": value,
-                    "display_value": value,
+                    "display_value": formatter(value),
                     "id": "_".join(rid[1:]),
                     "class": " ".join(rid)
                 }
@@ -416,6 +418,51 @@ class Styler(object):
             for i, j in locs:
                 formatter = _maybe_wrap_formatter(formatter)
                 self._display_funcs[(i, j)] = formatter
+        return self
+
+    def format_index(self, formatter):
+        """
+        Format the text display value of index.
+
+        .. versionadded:: 0.18.0
+
+        Parameters
+        ----------
+        formatter : str, callable, or dict
+
+        Returns
+        -------
+        self : Styler
+
+        Notes
+        -----
+
+        ``formatter`` is either an ``a`` or a dict ``{index name: a}`` where
+        ``a`` is one of
+
+        - str: this will be wrapped in: ``a.format(x)``
+        - callable: called with the value of an individual cell
+
+        The default display value for index is "str(index)".
+
+        Examples
+        --------
+
+        >>> df = pd.DataFrame(
+                {'a': range(3), 'b': range(3)}, index=['c', 'd', 'e']
+            )
+        >>> styler = df.style.format_index({'d': lambda x: f'Index {x}'})
+        >>> styler.render()
+        """
+        if is_dict_like(formatter):
+            for index, index_formatter in formatter.items():
+                index_formatter = _maybe_wrap_formatter(index_formatter)
+                index_num = self.data.index.get_loc(index)
+                self._display_index_funcs[index_num] = index_formatter
+        else:
+            for index_num in range(len(self.data)):
+                index_formatter = _maybe_wrap_formatter(formatter)
+                self._display_index_funcs[index_num] = index_formatter
         return self
 
     def render(self, **kwargs):
